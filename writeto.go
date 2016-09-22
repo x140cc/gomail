@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"sort"
 )
 
 // WriteTo implements io.WriterTo. It dumps the whole message into w.
@@ -19,13 +20,14 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 }
 
 func (w *messageWriter) writeMessage(m *Message) {
-	if _, ok := m.header["Mime-Version"]; !ok {
-		w.writeString("Mime-Version: 1.0\r\n")
-	}
 	if _, ok := m.header["Date"]; !ok {
 		w.writeHeader("Date", m.FormatDate(now()))
 	}
 	w.writeHeaders(m.header)
+	if _, ok := m.header["Mime-Version"]; !ok {
+		w.writeString("Mime-Version: 1.0\r\n")
+	}
+
 
 	if m.hasMixedPart() {
 		w.openMultipart("mixed")
@@ -238,11 +240,30 @@ func (w *messageWriter) writeLine(s string, charsLeft int) string {
 	return ""
 }
 
+type ByLength []string
+
+func (s ByLength) Len() int {
+    return len(s)
+}
+func (s ByLength) Swap(i, j int) {
+    s[i], s[j] = s[j], s[i]
+}
+func (s ByLength) Less(i, j int) bool {
+    return len(s[i]) < len(s[j])
+}
+
+
 func (w *messageWriter) writeHeaders(h map[string][]string) {
 	if w.depth == 0 {
-		for k, v := range h {
+		sorted_keys := make([]string, 0)  
+		for k, _ := range h {  
+			sorted_keys = append(sorted_keys, k)  
+		}  
+		sort.Sort(ByLength(sorted_keys))
+	//	sort.Strings(sorted_keys)  
+		for _, k := range sorted_keys {
 			if k != "Bcc" {
-				w.writeHeader(k, v...)
+				w.writeHeader(k, h[k]...)
 			}
 		}
 	} else {
